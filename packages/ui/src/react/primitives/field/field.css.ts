@@ -18,9 +18,10 @@ export const field = recipe({
       },
       horizontal: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '1rem',
+        gap: '0.75rem 1rem',
       },
     },
   },
@@ -32,10 +33,12 @@ export const field = recipe({
 export type FieldVariants = NonNullable<RecipeVariants<typeof field>>;
 
 // Label + description stacked, used in horizontal mode to occupy the left side.
+// The 14rem basis lets narrow rows wrap the control below the text instead of
+// squeezing the label into a one-word column.
 export const fieldContent = style({
   display: 'flex',
   flexDirection: 'column',
-  flex: 1,
+  flex: '1 1 14rem',
   gap: '0.25rem',
   minWidth: 0,
 });

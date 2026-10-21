@@ -35,8 +35,8 @@ export function WorkspaceRuntimeRow({
     <div className="flex flex-col gap-3">
       <SettingsRow
         label={
-          <span className="flex items-center gap-2">
-            Workspace Runtime
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="whitespace-nowrap">Workspace Runtime</span>
             {connected &&
               !loading &&
               state &&

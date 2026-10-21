@@ -11,6 +11,7 @@ export const card = style({
 
 export const row = style({
   display: 'flex',
+  flexWrap: 'wrap',
   justifyContent: 'space-between',
   alignItems: 'center',
   gap: '0.75rem',
@@ -21,7 +22,7 @@ export const row = style({
 export const rowBody = style({
   display: 'flex',
   minWidth: 0,
-  flex: '1 1 16rem',
+  flex: '1 1 12rem',
   flexDirection: 'column',
   gap: '0.25rem',
 });

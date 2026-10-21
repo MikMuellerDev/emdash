@@ -31,7 +31,8 @@ export const slot = recipe({
     '@layer': {
       recipes: {
         display: 'flex',
-        minWidth: 0,
+        // Room for the icon alone, so a crowded row never collapses a tab.
+        minWidth: '2.75rem',
         transitionProperty: 'flex-grow, flex-basis',
         ...motion,
       },
@@ -53,7 +54,7 @@ export const slot = recipe({
           recipes: {
             flexBasis: '6rem',
             flexGrow: 0,
-            flexShrink: 0,
+            flexShrink: 1,
           },
         },
       },
@@ -65,7 +66,7 @@ export const slot = recipe({
 });
 
 export const tab = style([
-  sx({ px: '5', py: '2' }),
+  sx({ px: '3', py: '2' }),
   {
     '@layer': {
       recipes: {

@@ -13,6 +13,8 @@ import {
   registeredTaskData,
   unregisteredTaskData,
 } from '@core/primitives/task-state/browser/task-state';
+import type { TaskLifecycleStatus } from '@core/primitives/tasks/api';
+
 export type SidebarTaskSortBy = WorkbenchSidebarState['taskSortBy'];
 
 export type TaskSortKind = 'created' | 'updated';
@@ -42,8 +44,26 @@ function isVisibleRegularTask(task: TaskStore): boolean {
   );
 }
 
+/** Order of the status groups in the sidebar, top to bottom. */
+export const SIDEBAR_STATUS_ORDER: readonly TaskLifecycleStatus[] = [
+  'done',
+  'review',
+  'in_progress',
+  'todo',
+  'backlog',
+  'triage',
+  'cancelled',
+  'duplicate',
+];
+
+function sidebarStatusOf(task: TaskStore): TaskLifecycleStatus {
+  return task.data.status ?? 'in_progress';
+}
+
 export type SidebarRow =
   | { kind: 'project'; projectId: string }
+  | { kind: 'status'; status: TaskLifecycleStatus; count: number; collapsed: boolean }
+  | { kind: 'projects-label' }
   | { kind: 'task'; projectId: string; taskId: string };
 
 export class SidebarStore {
@@ -85,6 +105,10 @@ export class SidebarStore {
     return this.state.taskSortBy;
   }
 
+  get groupTasksByStatus(): boolean {
+    return this.state.groupTasksByStatus ?? false;
+  }
+
   attachMemento(handle: MementoHandle<WorkbenchSidebarState>): void {
     if (this._handle) throw new Error('Sidebar memento is already attached');
     this._handle = handle;
@@ -103,7 +127,48 @@ export class SidebarStore {
     });
   }
 
+  get collapsedStatusGroups(): ReadonlySet<TaskLifecycleStatus> {
+    return new Set(this.state.collapsedStatusGroups ?? []);
+  }
+
+  /**
+   * Grouped layout: one status group per lifecycle status across every project, then
+   * the projects themselves as plain rows so their pages and actions stay reachable.
+   */
+  private get statusGroupedRows(): SidebarRow[] {
+    const entries: { projectId: string; task: TaskStore }[] = [];
+    for (const project of this.orderedProjects) {
+      const context = asAvailableProject(project);
+      if (!context) continue;
+      const tasks = Array.from(context.get(taskManagerStoreToken).tasks.values()).filter(
+        (task) => isVisibleRegularTask(task) && !task.data.isPinned
+      );
+      for (const task of this.orderTasksForProject(project.id, tasks)) {
+        entries.push({ projectId: project.id, task });
+      }
+    }
+
+    const rows: SidebarRow[] = [];
+    const collapsedGroups = this.collapsedStatusGroups;
+    for (const status of SIDEBAR_STATUS_ORDER) {
+      const group = entries.filter(({ task }) => sidebarStatusOf(task) === status);
+      if (group.length === 0) continue;
+      const collapsed = collapsedGroups.has(status);
+      rows.push({ kind: 'status', status, count: group.length, collapsed });
+      if (collapsed) continue;
+      for (const { projectId, task } of group) {
+        rows.push({ kind: 'task', projectId, taskId: task.data.id });
+      }
+    }
+    if (this.orderedProjects.length > 0) rows.push({ kind: 'projects-label' });
+    for (const project of this.orderedProjects) {
+      rows.push({ kind: 'project', projectId: project.id });
+    }
+    return rows;
+  }
+
   get sidebarRows(): SidebarRow[] {
+    if (this.groupTasksByStatus) return this.statusGroupedRows;
     const rows: SidebarRow[] = [];
     for (const project of this.orderedProjects) {
       const projectId = project.id;
@@ -111,14 +176,9 @@ export class SidebarStore {
       const context = asAvailableProject(project);
       if (this.expandedProjectIds.has(projectId) && context) {
         const tasks = Array.from(context.get(taskManagerStoreToken).tasks.values()).filter(
-          isVisibleRegularTask
+          (task) => isVisibleRegularTask(task) && !task.data.isPinned
         );
-        const manualOrder = this.taskOrderByProject[projectId];
-        const ordered = manualOrder?.length
-          ? this.mergeTaskOrder(projectId, tasks)
-          : this.sortTasksForSidebar(tasks);
-        for (const task of ordered) {
-          if (task.data.isPinned) continue;
+        for (const task of this.orderTasksForProject(projectId, tasks)) {
           rows.push({ kind: 'task', projectId, taskId: task.data.id });
         }
       }
@@ -162,11 +222,7 @@ export class SidebarStore {
     const tasks = Array.from(context.get(taskManagerStoreToken).tasks.values()).filter(
       (task) => isVisibleRegularTask(task) && !task.data.isPinned
     );
-    const manualOrder = this.taskOrderByProject[projectId];
-    const ordered = manualOrder?.length
-      ? this.mergeTaskOrder(projectId, tasks)
-      : this.sortTasksForSidebar(tasks);
-    return ordered.map((t) => t.data.id);
+    return this.groupByStatus(this.orderTasksForProject(projectId, tasks)).map((t) => t.data.id);
   }
 
   get isEmpty(): boolean {
@@ -211,6 +267,22 @@ export class SidebarStore {
       taskSortBy: sortBy,
       taskOrderByProject: {},
     }));
+  }
+
+  setGroupTasksByStatus(groupTasksByStatus: boolean): void {
+    this.updateState((current) => ({ ...current, groupTasksByStatus }));
+  }
+
+  toggleStatusGroupCollapsed(status: TaskLifecycleStatus): void {
+    this.updateState((current) => {
+      const collapsed = current.collapsedStatusGroups ?? [];
+      return {
+        ...current,
+        collapsedStatusGroups: collapsed.includes(status)
+          ? collapsed.filter((candidate) => candidate !== status)
+          : [...collapsed, status],
+      };
+    });
   }
 
   setProjectOrder(ids: string[]): void {
@@ -276,6 +348,20 @@ export class SidebarStore {
     const d = b.createdAt.localeCompare(a.createdAt);
     if (d !== 0) return d;
     return a.id.localeCompare(b.id);
+  }
+
+  private orderTasksForProject(projectId: string, tasks: TaskStore[]): TaskStore[] {
+    return this.taskOrderByProject[projectId]?.length
+      ? this.mergeTaskOrder(projectId, tasks)
+      : this.sortTasksForSidebar(tasks);
+  }
+
+  /** Status groups in `SIDEBAR_STATUS_ORDER`, keeping the sidebar order inside each group. */
+  private groupByStatus(tasks: TaskStore[]): TaskStore[] {
+    if (!this.groupTasksByStatus) return tasks;
+    return SIDEBAR_STATUS_ORDER.flatMap((status) =>
+      tasks.filter((task) => sidebarStatusOf(task) === status)
+    );
   }
 
   private sortTasksForSidebar(tasks: TaskStore[]): TaskStore[] {

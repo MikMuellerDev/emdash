@@ -5,7 +5,7 @@ export function ResourceUtilizationRow({ metrics }: { metrics: ResourceUsageSamp
   return (
     <Field.Root className="flex flex-col gap-3">
       <Field.Label>Resource Utilization</Field.Label>
-      <div className="mt-1 grid grid-cols-3 gap-2">
+      <div className="mt-1 grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2">
         <ResourceCard
           label="CPU"
           value={metrics ? formatPercent(metrics.cpu.usedPercent) : '—'}

@@ -1,6 +1,15 @@
+import { AgentStatus } from '@emdash/ui/react/components';
+import { GitBranch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useState } from 'react';
+import { taskAgentStatus } from '@core/features/conversations/api/browser/conversation-selectors';
+import {
+  getProjectStore,
+  projectData,
+} from '@core/features/projects/api/browser/stores/project-selectors';
 import { projectViewDef } from '@core/features/projects/contributions/views';
 import { useAppSettingsKey } from '@core/features/settings/api/browser/use-app-settings-key';
+import { getGitRepositoryStore } from '@core/features/source-control/api/browser/stores/source-control-selectors';
 import {
   getTaskGitCheckoutStore,
   getTaskPrAssociationStore,
@@ -15,12 +24,14 @@ import { TaskGitDiffStats } from '@core/features/tasks/contributions/browser/tas
 import { taskViewDef } from '@core/features/tasks/contributions/views';
 import { getTaskWorkspace } from '@core/features/workbench/api/browser/task-composition-selectors';
 import { TaskSidebarTrailingSlot } from '@core/features/workbench/browser/sidebar/task-sidebar-agent-status';
+import { getSidebarStore } from '@core/features/workbench/contributions/browser/app-stores';
 import { useOpenModal } from '@core/manifests/browser/modal-api';
 import {
   useNavigate,
   useViewParams,
   useWorkspaceSlots,
 } from '@core/primitives/navigation/browser/navigation-hooks';
+import { isGitHubDotComHost, parseRepositoryRef } from '@core/primitives/repository/api';
 import { cn } from '@core/primitives/styling/browser/cn';
 import { selectCurrentPr } from '@root/src/core/services/pull-requests/api';
 import { PrBadge } from '@root/src/core/services/pull-requests/browser/components/pr-badge';
@@ -90,6 +101,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const showPrStatus = interfaceSettings?.showLeftSidebarPrStatus ?? true;
   const showTimestamps = interfaceSettings?.showLeftSidebarTimestamps ?? true;
   const branchName = git?.branchName ?? undefined;
+  // Status-grouped rows sit directly under a status header, with no project row above
+  // them: the row itself carries what the agent is doing and which project it is in.
+  const isGrouped = rowVariant === 'underProject' && getSidebarStore().groupTasksByStatus;
   const handleReconnect =
     workspaceStore?.connectionState != null ? () => workspaceStore.reconnect() : undefined;
 
@@ -105,12 +119,14 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       onArchive={handleArchive}
       onReconnect={handleReconnect}
       onConvertAutomation={undefined}
+      status={task.data.status}
+      onSetStatus={canPin ? (status) => void task.updateStatus(status) : undefined}
       onDelete={handleDelete}
     >
       <SidebarMenuRow
         className={cn(
           'group/row flex items-center justify-between px-1 py-1.5 h-8 gap-1',
-          rowVariant === 'pinned' ? 'pl-2' : 'pl-8'
+          rowVariant === 'pinned' ? 'pl-2' : isGrouped ? 'h-9 pl-5' : 'pl-8'
         )}
         isActive={isActive}
         onMouseDown={(e) => e.preventDefault()}
@@ -118,8 +134,10 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       >
         <SidebarMenuAction
           aria-label={`Open task ${taskName || 'task'}`}
-          className="gap-1 overflow-hidden"
+          className={cn('overflow-hidden', isGrouped ? 'gap-2.5' : 'gap-1')}
         >
+          {isGrouped && <ProjectLogo projectId={projectId} />}
+          {isGrouped && <LeadingActivity task={task} />}
           <span
             className={cn(
               'min-w-0 truncate text-left transition-colors',
@@ -131,11 +149,66 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         </SidebarMenuAction>
         <div className="ml-2 flex shrink-0 items-center justify-end gap-1.5">
           {showLineChanges && <TaskGitDiffStats task={task} />}
-          {showPrStatus && <RenderPrBadge task={task} />}
-          <TaskSidebarTrailingSlot task={task} showTimestamp={showTimestamps} />
+          {showPrStatus && !isGrouped && <RenderPrBadge task={task} />}
+          <TaskSidebarTrailingSlot
+            task={task}
+            showTimestamp={showTimestamps}
+            showAgentStatus={!isGrouped}
+          />
         </div>
       </SidebarMenuRow>
     </TaskContextMenu>
+  );
+});
+
+/** What the task is doing right now: a live agent status, else its PR, else just a branch. */
+const LeadingActivity = observer(function LeadingActivity({ task }: { task: TaskStore }) {
+  const status = taskAgentStatus(task);
+  const pr = selectCurrentPr(getTaskPrAssociationStore(task).pullRequests);
+  return (
+    <span className="flex size-4 shrink-0 items-center justify-center">
+      {status !== null ? (
+        <AgentStatus status={status} tooltip />
+      ) : pr ? (
+        <span onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <PrBadge variant="compact" pr={pr} hoverDelay={100} />
+        </span>
+      ) : (
+        <GitBranch className="size-3.5 text-foreground-tertiary-passive" />
+      )}
+    </span>
+  );
+});
+
+/** The project's mark: its GitHub owner's avatar, or the project initial without one. */
+const ProjectLogo = observer(function ProjectLogo({ projectId }: { projectId: string }) {
+  const store = getProjectStore(projectId);
+  const name = (store ? projectData(store)?.name : undefined) ?? '';
+  const repository = parseRepositoryRef(getGitRepositoryStore(projectId)?.canonicalRepositoryUrl);
+  const owner =
+    repository && isGitHubDotComHost(repository.host)
+      ? repository.nameWithOwner.split('/')[0]
+      : undefined;
+  const [failed, setFailed] = useState(false);
+
+  if (owner && !failed) {
+    return (
+      <img
+        src={`https://github.com/${owner}.png?size=40`}
+        alt=""
+        title={name}
+        className="size-5 shrink-0 rounded-md bg-background-tertiary-3 object-cover"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <span
+      title={name}
+      className="flex size-5 shrink-0 items-center justify-center rounded-md bg-background-tertiary-3 text-[11px] font-medium text-foreground-tertiary uppercase"
+    >
+      {name.charAt(0)}
+    </span>
   );
 });
 

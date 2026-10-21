@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { createContainer, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import type { RecipeVariants } from '@vanilla-extract/recipes';
 import { vars } from '@theme/core/contract/contract.css';
@@ -29,7 +29,14 @@ export const outer = style({
   overflow: 'hidden',
 });
 
+// Width-driven (not viewport-driven) breakpoints: the page shares the window
+// with the app sidebar, so the layout has to react to its own inline size.
+const pageContainer = createContainer('page-layout');
+const narrowPage = `${pageContainer} (max-width: 47.5rem)`;
+
 export const scroll = style({
+  containerName: pageContainer,
+  containerType: 'inline-size',
   height: '100%',
   overflowX: 'hidden',
   overflowY: 'auto',
@@ -49,6 +56,14 @@ export const containerGrid = style({
   display: 'grid',
   gridTemplateColumns: '13rem minmax(0, 1fr)',
   gap: '2rem',
+  '@container': {
+    [narrowPage]: {
+      paddingLeft: '1rem',
+      paddingRight: '1rem',
+      gridTemplateColumns: '10.5rem minmax(0, 1fr)',
+      gap: '1rem',
+    },
+  },
 });
 
 /** Single centered column (Automations style). */
@@ -85,6 +100,12 @@ export const content = recipe({
     width: '100%',
     paddingLeft: '1rem',
     paddingRight: '1rem',
+    '@container': {
+      [narrowPage]: {
+        paddingLeft: 0,
+        paddingRight: 0,
+      },
+    },
   },
   variants: {
     maxWidth: {

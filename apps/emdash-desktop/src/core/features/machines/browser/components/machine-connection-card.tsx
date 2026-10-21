@@ -32,8 +32,8 @@ export function MachineConnectionRow({
   return (
     <SettingsRow
       label={
-        <span className="flex items-center gap-2">
-          SSH Connection
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="whitespace-nowrap">SSH Connection</span>
           <MachineBadge state={state} />
         </span>
       }

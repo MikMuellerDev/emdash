@@ -2,6 +2,7 @@ import { defineVersionedSchema } from '@emdash/core/primitives/versioned-schema/
 import { z } from 'zod';
 import { defineMemento } from '@core/primitives/mementos/api';
 import { appSubject } from '@core/primitives/subjects/api';
+import { taskLifecycleStatuses } from '@core/primitives/tasks/api';
 
 const workbenchSidebarV1Schema = z.object({
   version: z.literal('1'),
@@ -9,6 +10,9 @@ const workbenchSidebarV1Schema = z.object({
   projectOrder: z.array(z.string()),
   taskOrderByProject: z.record(z.string(), z.array(z.string())),
   taskSortBy: z.enum(['created-at', 'updated-at']),
+  // Optional so snapshots written before the setting existed still parse as version 1.
+  groupTasksByStatus: z.boolean().optional(),
+  collapsedStatusGroups: z.array(taskLifecycleStatuses).optional(),
 });
 
 export const workbenchSidebarSchema = defineVersionedSchema()

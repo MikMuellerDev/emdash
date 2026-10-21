@@ -7,6 +7,7 @@ import { tokenVars } from '@theme/tokens.css';
 type CSSExtra = { [key: string]: string };
 
 export const wrapper = style({
+  minWidth: 0,
   position: 'sticky',
   top: 0,
   alignSelf: 'start',
@@ -20,7 +21,7 @@ export const wrapper = style({
 });
 
 export const header = style({
-  width: '13rem',
+  width: '100%',
   flexShrink: 0,
   marginBottom: '0.75rem',
   ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),
@@ -28,7 +29,7 @@ export const header = style({
 
 export const nav = style({
   display: 'flex',
-  width: '13rem',
+  width: '100%',
   flex: 1,
   flexDirection: 'column',
   gap: '0.0625rem',
@@ -39,7 +40,7 @@ export const nav = style({
 });
 
 export const footer = style({
-  width: '13rem',
+  width: '100%',
   flexShrink: 0,
   marginTop: '0.75rem',
   ...({ WebkitAppRegion: 'no-drag' } as CSSExtra),

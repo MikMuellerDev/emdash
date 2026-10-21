@@ -10,7 +10,9 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
 
   return (
     <div className="flex h-[40px] items-center justify-between pr-2.5 pl-5">
-      <MicroLabel className="font-medium text-foreground-tertiary-passive">Projects</MicroLabel>
+      <MicroLabel className="font-medium text-foreground-tertiary-passive">
+        {getSidebarStore().groupTasksByStatus ? 'Tasks' : 'Projects'}
+      </MicroLabel>
       <div className="flex items-center gap-1">
         <DropdownMenu.Root>
           <Tooltip.Root>
@@ -18,14 +20,20 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
               render={
                 <Tooltip.Trigger
                   render={
-                    <Button type="button" variant="ghost" size="xs" icon aria-label="Sort projects">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      icon
+                      aria-label="Sort and group tasks"
+                    >
                       <ListFilter />
                     </Button>
                   }
                 />
               }
             />
-            <Tooltip.Content>Sort by</Tooltip.Content>
+            <Tooltip.Content>Sort and group</Tooltip.Content>
           </Tooltip.Root>
           <DropdownMenu.Content className="min-w-48">
             <DropdownMenu.Group>
@@ -42,6 +50,26 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
                   onClick={() => getSidebarStore().applySort('updated-at')}
                 >
                   Last used
+                </DropdownMenu.RadioItem>
+              </DropdownMenu.RadioGroup>
+            </DropdownMenu.Group>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Group>
+              <DropdownMenu.Label>Group by</DropdownMenu.Label>
+              <DropdownMenu.RadioGroup
+                value={getSidebarStore().groupTasksByStatus ? 'status' : 'project'}
+              >
+                <DropdownMenu.RadioItem
+                  value="project"
+                  onClick={() => getSidebarStore().setGroupTasksByStatus(false)}
+                >
+                  Project
+                </DropdownMenu.RadioItem>
+                <DropdownMenu.RadioItem
+                  value="status"
+                  onClick={() => getSidebarStore().setGroupTasksByStatus(true)}
+                >
+                  Status
                 </DropdownMenu.RadioItem>
               </DropdownMenu.RadioGroup>
             </DropdownMenu.Group>
